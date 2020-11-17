@@ -56,7 +56,7 @@ class TypedCartActor {
             nonEmpty(cart.removeItem(item), timer)
         case ExpireCart =>
           empty
-        case StartCheckout =>
+        case StartCheckout(orderManagerRef) =>
           timer.cancel
           inCheckout(cart)
         case _ =>

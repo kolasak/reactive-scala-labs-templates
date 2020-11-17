@@ -1,6 +1,8 @@
 package EShop.lab2
 
 import EShop.lab2.Checkout._
+import EShop.lab3.OrderManager
+import EShop.lab3.Payment
 import akka.actor.{Actor, ActorRef, Cancellable, Props}
 import akka.event.{Logging, LoggingReceive}
 
@@ -53,6 +55,8 @@ class Checkout(
 
   def selectingDelivery(timer: Cancellable): Receive = LoggingReceive {
     case CancelCheckout | ExpireCheckout =>
+      timer.cancel
+      cartActor ! CartActor.ConfirmCheckoutCancelled
       context become cancelled
     case SelectDeliveryMethod(method) =>
       context become selectingPaymentMethod(timer)
@@ -60,17 +64,24 @@ class Checkout(
 
   def selectingPaymentMethod(timer: Cancellable): Receive = LoggingReceive {
     case CancelCheckout | ExpireCheckout =>
+      timer.cancel
+      cartActor ! CartActor.ConfirmCheckoutCancelled
       context become cancelled
     case SelectPayment(payment) =>
       timer.cancel
+      val paymentActorRef = context.system.actorOf(Props(new Payment(payment, sender, self)))
+      sender ! OrderManager.ConfirmPaymentStarted(paymentActorRef)
       context become processingPayment(paymentTimer)
   }
 
   def processingPayment(timer: Cancellable): Receive = LoggingReceive {
     case CancelCheckout | ExpirePayment =>
+      timer.cancel
+      cartActor ! CartActor.ConfirmCheckoutCancelled
       context become cancelled
     case ConfirmPaymentReceived =>
       timer.cancel
+      cartActor ! CartActor.ConfirmCheckoutClosed
       context become closed
   }
 

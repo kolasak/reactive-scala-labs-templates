@@ -68,7 +68,7 @@ class TypedCheckout(
       message match {
         case CancelCheckout | ExpireCheckout =>
           cancelled
-        case SelectPayment(payment) =>
+        case SelectPayment(payment, orderManagerRef) =>
           timer.cancel
           processingPayment(paymentTimer(context))
         case _ =>

@@ -22,7 +22,15 @@ class CheckoutTest
     TestKit.shutdownActorSystem(system)
 
   it should "Send close confirmation to cart" in {
-    ???
+    val cartProbe = TestProbe()
+    val checkout  = TestActorRef(new Checkout(cartProbe.ref))
+
+    checkout ! StartCheckout
+    checkout ! SelectDeliveryMethod("in-store")
+    checkout ! SelectPayment("cash")
+    checkout ! ConfirmPaymentReceived
+
+    cartProbe.expectMsg(CartActor.ConfirmCheckoutClosed)
   }
 
 }
