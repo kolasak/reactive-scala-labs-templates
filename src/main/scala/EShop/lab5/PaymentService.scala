@@ -2,7 +2,9 @@ package EShop.lab5
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import EShop.lab5.PaymentService._
 
 object PaymentService {
 
@@ -15,15 +17,44 @@ object PaymentService {
 }
 
 class PaymentService(method: String, payment: ActorRef) extends Actor with ActorLogging {
+  import akka.pattern.pipe
+  import context.dispatcher
 
   final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
 
   private val http = Http(context.system)
   private val URI  = getURI
 
-  override def preStart(): Unit = ??? //create http request (use http and uri)
+  override def preStart(): Unit =
+    http
+      .singleRequest(HttpRequest(uri = URI))
+      .pipeTo(self)
 
-  override def receive: Receive = ???
+  override def receive: Receive = {
+    case resp @ HttpResponse(StatusCodes.OK, _, _, _) =>
+      payment ! PaymentSucceeded
+      resp.discardEntityBytes()
+      context.stop(self)
+    case resp @ HttpResponse(StatusCodes.BadRequest, _, _, _) => // 400
+      resp.discardEntityBytes()
+      throw new PaymentClientError()
+    case resp @ HttpResponse(StatusCodes.NotFound, _, _, _) => // 404
+      resp.discardEntityBytes()
+      throw new PaymentClientError()
+
+    case resp @ HttpResponse(StatusCodes.ImATeapot, _, _, _) => // 408
+      resp.discardEntityBytes()
+      throw new PaymentServerError()
+    case resp @ HttpResponse(StatusCodes.RequestTimeout, _, _, _) => // 418
+      resp.discardEntityBytes()
+      throw new PaymentServerError()
+    case resp @ HttpResponse(StatusCodes.InternalServerError, _, _, _) => // 500
+      resp.discardEntityBytes()
+      throw new PaymentServerError()
+    case resp @ HttpResponse(StatusCodes.ServiceUnavailable, _, _, _) => // 503
+      resp.discardEntityBytes()
+      throw new PaymentServerError()
+  }
 
   private def getURI: String = method match {
     case "payu"   => "http://127.0.0.1:8080"

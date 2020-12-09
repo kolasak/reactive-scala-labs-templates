@@ -1,8 +1,10 @@
 package EShop.lab5
 
-import EShop.lab3.Payment.DoPayment
+import EShop.lab3.Payment.{DoPayment, PaymentConfirmed}
 import EShop.lab5.Payment.{PaymentRejected, PaymentRestarted}
+import EShop.lab5.PaymentService.{PaymentClientError, PaymentServerError, PaymentSucceeded}
 import akka.actor.{Actor, ActorLogging, ActorRef, OneForOneStrategy, Props}
+import akka.actor.SupervisorStrategy.{Restart, Stop}
 
 import scala.concurrent.duration._
 
@@ -25,11 +27,21 @@ class Payment(
 
   override def receive: Receive = {
     case DoPayment => // use payment service
+      context.actorOf(PaymentService.props(method, self))
+    case PaymentSucceeded =>
+      orderManager ! PaymentConfirmed
+      checkout ! PaymentConfirmed
+    case _ =>
   }
 
   override val supervisorStrategy: OneForOneStrategy =
     OneForOneStrategy(maxNrOfRetries = 3, withinTimeRange = 1.seconds) {
-      ???
+      case _: PaymentServerError =>
+        notifyAboutRestart()
+        Restart
+      case _: PaymentClientError =>
+        notifyAboutRejection()
+        Stop
     }
 
   //please use this one to notify when supervised actor was stoped
